@@ -58,23 +58,63 @@ UInt128 multiply64(uint64_t a, uint64_t b, uint64_t c){
 }
 
 // Función para dividir un entero sin signo de 128 bits entre un entero sin signo de 64 bits
-UInt128 divide128By64(UInt128 dividend, uint64_t divisor) {
-    __uint128_t div, q;
-    UInt128 quotient = {0, 0};
-    uint64_t remainder = 0;
-    
-    //Asignamos el dividendo al tipo de dato uint64_t
-    div = (dividend.high << 64) | divident.low;
-    
-    //Realizamos la division
-    q = div / divisor;
-    
-    //Almacenamos el cociente en un UInt128
-    quotient.low = q & 0xFFFFFFFFFFFFFFFF;
-    quotient.high = (q >> 64) & 0xFFFFFFFFFFFFFFFF;
-    return quotient;
+void divide128By64(UInt128 dividend, uint64_t divisor, UInt128 & quotient, uint64_t & remainder) {
+	quotient = {0, 0};
+	uint64_t actual_div = 0, resta;
+	bool carry = false;
+	//Realizamos la division en binario, bit a bit, para la primera parte del cociente
+	for(int i = 64; i > 0; i--){
+		//Incluimos un nuevo bit en el dividendo actual
+		actual_div = (actual_div << 1) | (dividend.high << (64 - i) >> 63);
+		cout << "Digito " << i << " = " << actual_div << endl;
+		//Restamos el divisor al dividendo actual
+		resta = actual_div - divisor;
+		//Si no hay acarreo, entonces actual_div > divisor
+		//Por tanto, en el cociente colocamos un 1
+		if(actual_div >= resta){
+			quotient.high = (quotient.high << 1) | 1;
+			actual_div = resta;
+		}
+		//Si hay acarreo, entonces tomamos cociente 0 
+		else{
+			quotient.high = quotient.high << 1;
+		}
+	}
+	//Realizamos la division en binario, bit a bit, para la segunda parte del cociente
+	//A partir de aqui, es posible que el divisor sea mas grande que el valor guardado 
+	//en actual_div debido a la perdida del bit mas significativo. Para conservarlo, usamos
+	//el booleano carry
+	for(int i = 64; i > 0; i--){
+		
+		//Incluimos un nuevo bit en el dividendo actual
+		carry = actual_div >> 63;
+		actual_div = (actual_div << 1) | (dividend.low << (64 - i) >> 63);
+		cout << "Digito " << i << " = " << actual_div << endl;
+		
+		//Restamos el divisor al dividendo actual
+		resta = actual_div - divisor;
+		if(carry)
+			printf("C");
+		printf("%016lx - %016lx = %016lx \n", actual_div, divisor, resta);
+		
+		//Si no hay acarreo, o hay acarreo virtual (por la presencia de un 1 a la izquierda 
+		//no se hubiera producido acarreo), entonces actual_div > divisor.
+		//Por tanto, en el cociente colocamos un 1
+		if(actual_div >= resta || carry){
+			quotient.low = (quotient.low << 1) | 1;
+			actual_div = resta;
+			printf("Aniade 1\n");
+		}
+		//Si hay acarreo, entonces tomamos cociente 0 
+		else{
+			quotient.low = quotient.low << 1;
+			printf("Aniade 0\n");
+		}
+		printf("Cociente actual: %016lx %016lx\n\n", quotient.high, quotient.low);
+	}
+	remainder = actual_div;
+	printf("Resto: %016lx\n", actual_div);
 }
-
 
 
 class BigInt{
@@ -268,6 +308,31 @@ class BigInt{
 			
 			return *this;
 		}
+		//Operador de asignacion - cString
+		BigInt& operator=(const char* s0){
+			//Hacemos una copia del string
+			string s = s0;
+			//cout << "string a convertir: " << s << endl;
+			
+			//Borramos espacios en blanco de s
+			eraseBlankSpaces(s);
+			//cout << "Sin espacios en blanco: " << s << endl;
+			
+			//Verificamos que el formato es correcto, y extraemos el signo
+			bool format_ok = eraseHeaderFromBigIntString(s, sign);
+			
+			//Si el formato es correcto
+			if(format_ok){
+				//cout << "Sin signo ni 0x: " << s << endl;
+				//Crea digits a partir del string
+				digits = createDigitsFromString(s);
+				//Quitamos ceros a la izquierda de digits
+				eraseZerosAtLeft();
+			}
+			
+			return *this;
+		}
+		
 		//Conversion a string
 		//Crea un string con el numero representado en base 16
 		string toString() const{
@@ -546,12 +611,9 @@ class BigInt{
 				}
 				//Si el divisor es valido
 				else{
-					UInt128 dividend;
-					BigInt dividend_rem, div_act, q_act, divisor_act;
-					uint64_t aux;
+					UInt128 dividend, q_act;
+					uint64_t dividend_rem, aux;
 					unsigned int m = getDigits().size() - 1;
-					
-					divisor_act.getDigits().push_back(divisor);
 					
 					//Introducimos en el cociente m + 1 digitos en blanco
 					for(int i = m + 1; i > 0; i--){
@@ -560,30 +622,15 @@ class BigInt{
 					//Dividimos por partes
 					//Primera iteracion: usamos un 0 a la izquierda del dividendo
 					dividend = {0, getDigits()[m]};
-					q.getDigits()[m] = divide128By64(dividend, divisor);
-					//Calculamos los restos
-					div_act.getDigits().clear();
-					div_act.getDigits().push_back(getDigits()[m]);
-					div_act.getDigits().push_back(0);
-					q_act.getDigits().clear();
-					q_act.getDigits().push_back(q.getDigits()[m]);
+					divide128By64(dividend, divisor, q_act, dividend_rem);
+					q.getDigits()[m] = q_act.low;
 					
-					dividend_rem = div_act - q_act*divisor_act;
 					for(int i = m; i > 0; i--){
-						dividend = {dividend_rem.getDigits(0), getDigits().at(i-1)};
-						q.getDigits()[i-1] = divide128By64(dividend, divisor);
-						
-						//Calculamos los restos
-						div_act.getDigits().clear();
-						div_act.getDigits().push_back(getDigits().at(i-1));
-						div_act.getDigits().push_back(dividend_rem.getDigits(0));
-						q_act.getDigits().clear();
-						q_act.getDigits().push_back(q.getDigits()[i-1]);
-						
-						dividend_rem = div_act - q_act*divisor_act;
+						dividend = {dividend_rem, getDigits().at(i-1)};
+						divide128By64(dividend, divisor, q_act, dividend_rem);
+						q.getDigits()[i-1] = q_act.low;
 					}
-					
-					r = dividend_rem.getDigits().at(0);
+					r.getDigits().push_back(dividend_rem);
 				}
 			}
 			//Si el divisor tiene mas de dos digitos
@@ -725,25 +772,28 @@ void test3(){
 }
 
 void test4(){
+	BigInt bi1 = "0x F234567876543210 0000000000000001 0000000000000000 F234567876543210", result;
+	BigInt bi2 = "0x ffffffffffffffff";
+	BigInt q, r;
+	
 	cout << "--------------Test Ejercicio 4--------------" << endl;
-	// Dividendo de 128 bits (representado por dos partes de 64 bits)
-	UInt128 dividend = {0x1234567876543210, 0xFFFFFFFFFFFFFFFF};
-	// Divisor de 64 bits 
-	//uint64_t divisor = 0xFFFFFFFFFFFFFFFF;
-	uint64_t divisor = 0x121651848416;
-	// Realizamos la división
-	UInt128 quotient = divide128By64(dividend, divisor);
-
-	// Imprimimos el resultado
-	std::cout << "Cociente: 0x";
-	printf("%016lx %016lx\n", quotient.high, quotient.low);
+	bi1.scholarDivision(bi2, q, r);
+	cout << "Dividendo: " << bi1 << endl;
+	cout << "Divisor: " << bi2 << endl;
+	cout << "Cociente: " << q << endl;
+	cout << "Resto: " << r << endl;
+	
+	bi2.scholarDivision(bi1, q, r);
+	cout << "Dividendo: " << bi2 << endl;
+	cout << "Divisor: " << bi1 << endl;
+	cout << "Cociente: " << q << endl;
+	cout << "Resto: " << r << endl;
+	
 	cout << "----------------Test 4 OK :)-----------------" << endl;
 }
 
 int main(){
-	
-	//test2();
-	
+	test4();
 }
 
 
