@@ -29,6 +29,7 @@ UInt128 multiply64(uint64_t a, uint64_t b, uint64_t c){
 	cout << hex << "aHigh = " << aHigh << "\taLow = " << aLow << endl;
 	cout << hex << "bHigh = " << bHigh << "\tbLow = " << bLow << endl;
 	cout << hex << "c = " << c << endl; 
+	
 	//Efectuamos los productos entre las partes de 32b, de forma que el resultado sea de 64b
 	uint64_t resultLow = aLow * bLow;
 	uint64_t resultMid1 = aLow * bHigh;
@@ -570,10 +571,11 @@ class BigInt{
 		BigInt scholarMult(const BigInt& other) const{
 			uint64_t zero = 0;
 			BigInt res = "0x0";
-			UInt128 mult = {0,0};
+			UInt128 mult;
 			//Calculamos la multiplicacion
 			for(int j = 0; j < other.getDigits().size(); j++){
 				BigInt bi_part;
+				mult = {0,0};
 				bi_part.getDigits().clear();	//Quitamos todos los digitos
 				for(int k = 0; k < j; k++){
 					bi_part.getDigits().push_back(zero);
@@ -581,11 +583,13 @@ class BigInt{
 				for(int i = 0; i < getDigits().size(); i++){
 					cout << "Multiplicando (" << i << "," << j << ")" << endl;
 					mult = multiply64(getDigits().at(i),other.getDigits().at(j),mult.high);
-					//cout << hex << " = " << mult.high << " " << mult.low << endl;
 					bi_part.getDigits().push_back(mult.low);
 				}
 				bi_part.getDigits().push_back(mult.high);
+				cout << bi_part << endl;
 				res = res + bi_part;
+				//cout << "getDigits().size() = " << getDigits().size() << (*this) << endl;
+				//cout << "other.getDigits().size() = " << other.getDigits().size() << endl;
 			}
 			res.eraseZerosAtLeft();
 			
@@ -853,16 +857,17 @@ void test3(){
 	BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff ffffffffffffffff";
 	cout << "--------------Test Ejercicio 3--------------" << endl;
 	//
-	/*
-	BigInt bi3 = a*bi2;
-	cout << "bi1 = " << bi1 << endl;
+	
+	BigInt bi3 = b*bi2;
+	cout << "bi1 = " << b << endl;
 	cout << "bi2 = " << bi2 << endl;
-	cout << "bi3 = bi1 * bi2 = " << bi3 << endl; 
-	*/
+	cout << "bi3 = b * bi2 = " << bi3 << endl; 
+	/*
 	BigInt bi4 = c*bi2;
 	cout << "c = " << c << endl;
 	cout << "bi2 = " << bi2 << endl;
 	cout << "bi4 = c * bi2 = " << bi4 << endl; 
+	*/
 	cout << "----------------Test 3 OK :)-----------------" << endl;
 }
 
