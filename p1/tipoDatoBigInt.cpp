@@ -25,39 +25,39 @@ UInt128 multiply64(uint64_t a, uint64_t b, uint64_t c){
 	uint64_t aHigh = a >> 32;
 	uint64_t bLow = b & 0x00000000FFFFFFFF;
 	uint64_t bHigh = b >> 32;
-	
+	/*
 	cout << hex << "aHigh = " << aHigh << "\taLow = " << aLow << endl;
 	cout << hex << "bHigh = " << bHigh << "\tbLow = " << bLow << endl;
 	cout << hex << "c = " << c << endl; 
-	
+	*/
 	//Efectuamos los productos entre las partes de 32b, de forma que el resultado sea de 64b
 	uint64_t resultLow = aLow * bLow;
 	uint64_t resultMid1 = aLow * bHigh;
 	uint64_t resultMid2 = aHigh * bLow;
 	uint64_t resultHigh = aHigh * bHigh;
-	
+	/*
 	cout << hex << "resultLow: " << resultLow << endl;
 	cout << hex << "resultMid1: " << resultMid1 << endl;
 	cout << hex << "resultMid2: " << resultMid2 << endl;
 	cout << hex << "resultHigh: " << resultHigh << endl;
-	
+	*/
 	//Realizamos la suma de las partes para calcular la multiplicacion, que se almacenara
 	//entre dos uint64_t
 	//Vamos controlando tambien el carry que puede tener esta operacion
 	partial_result0 = resultLow + (resultMid1 << 32);
-	cout << hex << "partial_result0: " << partial_result0 << endl;
+	//cout << hex << "partial_result0: " << partial_result0 << endl;
 	carry = (partial_result0 < resultLow) ? carry+1 : carry;
 	partial_result1 = partial_result0 + (resultMid2 << 32); 
-	cout << hex << "partial_result1: " << partial_result1 << endl;
+	//cout << hex << "partial_result1: " << partial_result1 << endl;
 	carry = (partial_result1 < partial_result0) ? carry+1 : carry;
 	result.low = partial_result1 + c;
 	
 	carry = (result.low < partial_result1 || result.low < c) ? carry+1 : carry;
 	result.high = resultHigh + (resultMid1 >> 32) + (resultMid2 >> 32) + carry;
-	
+	/*
 	cout << hex << "Carry: " << result.high << endl;
 	cout << hex << "Result: " << result.low << endl;
-	
+	*/
 	return result;
 }
 
@@ -581,15 +581,13 @@ class BigInt{
 					bi_part.getDigits().push_back(zero);
 				}
 				for(int i = 0; i < getDigits().size(); i++){
-					cout << "Multiplicando (" << i << "," << j << ")" << endl;
+					//cout << "Multiplicando (" << i << "," << j << ")" << endl;
 					mult = multiply64(getDigits().at(i),other.getDigits().at(j),mult.high);
 					bi_part.getDigits().push_back(mult.low);
 				}
 				bi_part.getDigits().push_back(mult.high);
-				cout << bi_part << endl;
+				//cout << "bi_part: " << bi_part << endl;
 				res = res + bi_part;
-				//cout << "getDigits().size() = " << getDigits().size() << (*this) << endl;
-				//cout << "other.getDigits().size() = " << other.getDigits().size() << endl;
 			}
 			res.eraseZerosAtLeft();
 			
@@ -597,139 +595,265 @@ class BigInt{
 			bool signo = (getSign() && other.getSign()) || (!getSign() && !other.getSign());
 			res.setSign(signo);
 			
-			cout << "Producto: " << res << endl;
+			//cout << "Producto: " << res << endl;
 			
 			return res;
 		}
 		
-		void scholarDivision(BigInt d, BigInt& q, BigInt& r){
+		void scholarDivision(BigInt d, BigInt& q, BigInt& r, bool debug = false) const{
 			//Borramos los valores previos de q y r
 			q.getDigits().clear();
-			r.getDigits().clear();	
+			r.getDigits().clear();
 			
-			//Si el divisor tiene un digito
-			if(d.getDigits().size() == 1){
-				//Guardamos el divisor en un uint64_t
-				uint64_t divisor = d.getDigits().at(0);
-				//Comprobamos division entre 0
-				if(divisor == 0){
-					//cout << "Error: division entre 0" << endl;
-					q = "0x0";
-					r = "-0x1";
-				}
-				//Si el divisor es valido
-				else{
-					UInt128 dividend, q_act;
-					uint64_t dividend_rem;
-					unsigned int m = getDigits().size() - 1;
-					
-					//Introducimos en el cociente m + 1 digitos en blanco
-					for(int i = m + 1; i > 0; i--){
-						q.getDigits().push_back(0);
-					}
-					//Dividimos por partes
-					//Primera iteracion: usamos un 0 a la izquierda del dividendo
-					dividend = {0, getDigits()[m]};
-					divide128By64(dividend, divisor, q_act, dividend_rem);
-					q.getDigits()[m] = q_act.low;
-					
-					for(int i = m; i > 0; i--){
-						dividend = {dividend_rem, getDigits().at(i-1)};
-						divide128By64(dividend, divisor, q_act, dividend_rem);
-						q.getDigits()[i-1] = q_act.low;
-					}
-					r.getDigits().push_back(dividend_rem);
-				}
+			//Si el divisor es mayor en valor absoluto que el dividendo, devolvemos 
+			//cociente 0 y resto el dividendo
+			BigInt D_abs(*this), d_abs(d);
+			D_abs.setSign(true);
+			d_abs.setSign(true);
+			if(D_abs < d_abs){
+				if(debug)
+					cout << "Dividendo menor que divisor: q = 0, r = D" << endl;
+				q = "0x0";
+				r = (*this);
 			}
-			//Si el divisor tiene mas de dos digitos
 			else{
-				BigInt dividend_norm, divisor_norm, norm_bi, q_hat_bi, zero;
-				BigInt dividend2_bi, divisor2_bi, remainder_bi;
-				BigInt dividendj_norm, aux_bi;
-				UInt128 base = {1,0}, aux128, div_act;
-				uint64_t norm, aux, q_hat;
-				//Digito mas significativo de divisor
-				uint64_t d_n = d.getDigits()[d.getDigits().size()-1];	
-				
-				
-				//Normalizamos los operandos
-				if(d_n + 1 == 0){	//Si d_n + 1, entonces es igual a la base, y norm=1
-					norm = 1;
+				//Si el divisor tiene un digito
+				if(d.getDigits().size() == 1){
+					//Guardamos el divisor en un uint64_t
+					uint64_t divisor = d.getDigits().at(0);
+					//Comprobamos division entre 0
+					if(divisor == 0){
+						if(debug)
+							cout << "Error: division entre 0" << endl;
+						q = "0x0";
+						r = "-0x1";
+					}
+					//Si el divisor es valido
+					else{
+						UInt128 dividend, q_act;
+						uint64_t dividend_rem;
+						unsigned int m = getDigits().size() - 1;
+						
+						//Introducimos en el cociente m + 1 digitos en blanco
+						for(int i = m + 1; i > 0; i--){
+							q.getDigits().push_back(0);
+						}
+						//Dividimos por partes
+						//Primera iteracion: usamos un 0 a la izquierda del dividendo
+						dividend = {0, getDigits()[m]};
+						divide128By64(dividend, divisor, q_act, dividend_rem);
+						q.getDigits()[m] = q_act.low;
+						
+						for(int i = m; i > 0; i--){
+							dividend = {dividend_rem, getDigits().at(i-1)};
+							divide128By64(dividend, divisor, q_act, dividend_rem);
+							q.getDigits()[i-1] = q_act.low;
+						}
+						r.getDigits().push_back(dividend_rem);
+					}
 				}
+				//Si el divisor tiene mas de dos digitos
 				else{
-					divide128By64(base, d_n + 1, aux128, aux);
-					norm = aux128.low;
-				}
-				
-				norm_bi.getDigits()[0] = norm;
-				dividend_norm = (*this) * norm_bi;
-				dividend_norm.getDigits().push_back(0);	//Anadimos 0 al final
-				
-				divisor_norm = d * norm_bi;
-				
-				cout << "Dividendo: " << hex <<  (*this) << endl;
-				cout << "Divisor: " << hex <<  d << endl;
-				cout << hex << "d_n = " << d_n << endl;
-				cout << "Factor de normalizacion: " << hex <<  norm_bi << endl;
-				cout << "Dividendo normalizado: " << hex <<  dividend_norm << endl;
-				cout << "Divisor normalizado: " << hex << d * norm_bi << endl;
-				
-				//Introducimos en el cociente los digitos en blanco necesarios
-				for(int i = dividend_norm.getDigits().size() - 1; 
-						i >= divisor_norm.getDigits().size() - 1; i--){
-					q.getDigits().push_back(0);
-				}
-				
-				for(int i = dividend_norm.getDigits().size() - 1; 
-						i >= divisor_norm.getDigits().size() - 1; i--){
-					//Obtenemos el segundo digito mas significativo de dividendo y divisor
-					//y los guardamos en un BigInt
-					dividend2_bi.getDigits()[0] = dividend_norm.getDigits()[i-2];
-					divisor2_bi.getDigits()[0] = divisor_norm.getDigits()[divisor_norm.getDigits().size()-2];
+					BigInt dividend_norm, divisor_norm, norm_bi, q_hat_bi, zero;
+					BigInt dividend2_bi, divisor1_bi, divisor2_bi, remainder_bi;
+					BigInt dividendj_norm, aux_bi;
+					BigInt base_bi = "0x10000000000000000";
+					UInt128 base = {1,0}, aux128, div_act;
+					uint64_t norm, aux, q_hat;
+					//Digito mas significativo de divisor
+					uint64_t d_n = d.getDigits()[d.getDigits().size()-1];	
 					
-					if(divisor_norm.getDigits().at(divisor_norm.getDigits().size() - 1)
-					   == dividend_norm.getDigits()[i]){
-						q_hat = (uint64_t) - 1;
-						divide128By64(div_act, q_hat, aux128, aux);
-						remainder_bi.getDigits()[0] = aux;
+					
+					//Normalizamos los operandos
+					if(d_n + 1 == 0){	//Si d_n + 1, entonces es igual a la base, y norm=1
+						norm = 1;
 					}
 					else{
+						divide128By64(base, d_n + 1, aux128, aux);
+						norm = aux128.low;
+					}
+					
+					norm_bi.getDigits()[0] = norm;
+					dividend_norm = (*this) * norm_bi;
+					divisor_norm.setSign(true);
+					divisor_norm.eraseZerosAtLeft();
+					dividend_norm.getDigits().push_back(0);	//Anadimos 0 al final
+					
+					
+					divisor_norm = d * norm_bi;
+					divisor_norm.setSign(true);
+					divisor_norm.eraseZerosAtLeft();
+					if(debug){
+						cout << "Dividendo: " << hex <<  (*this) << endl;
+						cout << "Divisor: " << hex <<  d << endl;
+						cout << hex << "d_n = " << d_n << endl;
+						cout << "Factor de normalizacion: " << hex <<  norm_bi << endl;
+						cout << "Dividendo normalizado: " << hex <<  dividend_norm << endl;
+						cout << "Divisor normalizado: " << hex << d * norm_bi << endl;
+					}
+					//Introducimos en el cociente los digitos en blanco necesarios
+					for(int i = dividend_norm.getDigits().size() - 1; 
+							i >= divisor_norm.getDigits().size() - 1; i--){
+						q.getDigits().push_back(0);
+					}
+					//Obtenemos el segundo digito mas significativo del divisor
+					//y los guardamos en un BigInt
+					divisor1_bi.getDigits()[0] = divisor_norm.getDigits()[divisor_norm.getDigits().size()-1];
+					divisor2_bi.getDigits()[0] = divisor_norm.getDigits()[divisor_norm.getDigits().size()-2];
+					
+					for(int i = dividend_norm.getDigits().size() - 1; 
+							i > divisor_norm.getDigits().size() - 1; i--){
+						if(debug)
+							cout << "----------------- i = " << i << " -----------------" << endl;
+						//Obtenemos el segundo digito mas significativo del dividendo actual
+						//y los guardamos en un BigInt
+						dividend2_bi.getDigits()[0] = dividend_norm.getDigits()[i-1];
+						
 						div_act.high = dividend_norm.getDigits()[i];
 						div_act.low = dividend_norm.getDigits()[i-1];
-						divide128By64(div_act, d_n, aux128, aux);
-						q_hat = aux128.low;
-					}
-					q_hat_bi.getDigits()[0] = q_hat;
-					
-					BigInt a1 = q_hat_bi * divisor2_bi;
-					BigInt a2 = remainder_bi + dividend2_bi;
-					if(a1 > a2){
-						q_hat_bi.getDigits()[0] = q_hat - 1;
-						a1 = q_hat_bi * divisor2_bi;
-						if(a1 > a2){
-							q_hat_bi.getDigits()[0] = q_hat - 2;
+						if(debug)
+							cout << "Dividendo activo: " << div_act.high << " " << div_act.low << endl;
+						
+						//Obtenemos la aproximacion del cociente en q-hat
+						//Si el primer digito de dividendo y divisor coinciden, se prueba con el 
+						//valor mas grande
+						if(divisor_norm.getDigits().at(divisor_norm.getDigits().size() - 1)
+						   == dividend_norm.getDigits()[i]){
+							q_hat = (uint64_t) -1;	//Valor sin signo mas alto posible en uint64_t
+							divide128By64(div_act, q_hat, aux128, aux);		  //Obtenemos el resto
 						}
+						//Si no, se aproxima con la division de los primeros digitos
+						else{
+							divide128By64(div_act, divisor_norm.getDigits()[divisor_norm.getDigits().size()-1], aux128, aux);
+							q_hat = aux128.low;
+						}
+						q_hat_bi.getDigits()[0] = q_hat;
+						remainder_bi.getDigits()[0] = aux;
+						if(debug){
+							cout << "q-hat = " << q_hat_bi << endl;
+							cout << "resto inicial = " << remainder_bi << endl;
+						}
+						
+						if(debug){
+							cout << "Segundo digito del dividendo: " << dividend2_bi << endl;
+							cout << "Segundo digito del divisor: " << divisor2_bi << endl;
+						}
+						
+						BigInt a1 = q_hat_bi * divisor2_bi;
+						BigInt a2 = remainder_bi * base_bi + dividend2_bi;
+						if(debug){
+							cout << "a1 = " << a1 << endl;
+							cout << "a2 = " << a2 << endl;
+						}
+						if(a1 > a2){
+							q_hat_bi.getDigits()[0] = q_hat - 1;
+							a1 = q_hat_bi * divisor2_bi;
+							remainder_bi = remainder_bi + divisor1_bi;
+							a2 = remainder_bi * base_bi + dividend2_bi;
+							if(debug){
+								cout << "Resta 1 a q-hat: " << q_hat_bi << endl;
+								cout << "a1 = " << a1 << endl;
+								cout << "a2 = " << a2 << endl;
+							}
+							if(a1 > a2){
+								q_hat_bi.getDigits()[0] = q_hat - 2;
+								if(debug){
+									cout << "Resta 1 a q-hat: " << q_hat_bi << endl;
+								}
+							}
+						}
+						//Obtenemos la parte actual del dividendo
+						dividendj_norm.getDigits().clear();
+						for(int j = divisor_norm.getDigits().size(); j >= 0 ; j--){
+							dividendj_norm.getDigits().push_back(dividend_norm.getDigits()[i-j]);
+						}
+						//Restamos a la parte afectada del dividendo el divisor por el cociente
+						if(debug){
+							cout << "Dividendo actual: " << dividendj_norm << endl;
+							cout << "Restamos: " << q_hat_bi << "*" << divisor_norm << " = " 
+								 << q_hat_bi*divisor_norm << endl;
+						}
+						if(debug){
+							cout << "dividend_norm sin modificar: " << dividend_norm << endl;
+							cout << "dividendj_norm: " << dividendj_norm << endl;
+						}
+						dividendj_norm = dividendj_norm - q_hat_bi*divisor_norm;
+						
+						while(dividendj_norm < zero){
+							dividendj_norm = dividendj_norm + divisor_norm;
+							q_hat_bi.getDigits()[0]--;
+							if(debug){
+								cout << "Resta 1 a q-hat en bucle: " << q_hat_bi << endl;
+								cout << "Dividendo nuevo: " << dividendj_norm << endl;
+							}
+						}
+						if(debug){
+							cout << "Restando a dividendj_norm... " << endl;
+							cout << "dividendj_norm: " << dividendj_norm << endl;
+						}
+						for(int j = 0; j < dividendj_norm.getDigits().size(); j++){
+							int index = i-j-1;
+							if(debug){
+								cout << "dividend_norm.getDigits()[" << index << "] = " 
+								<< "dividendj_norm.getDigits()[" 
+								<< dividendj_norm.getDigits().size()-j-1 
+								<< "] = " 
+								<<  dividendj_norm.getDigits()[dividendj_norm.getDigits().size()-j-1]
+								<< endl;
+							}
+							dividend_norm.getDigits()[index] = dividendj_norm.getDigits()[dividendj_norm.getDigits().size()-j-1];
+							//cout << "acceso a = " << divisor_norm.getDigits().size()-j << endl;
+							//cout << dividend_norm.getDigits()[i-j] << endl;
+						}
+						
+						if(debug)
+							cout << "Resto del dividendo: " << dividend_norm << endl;
+						q.getDigits()[i-divisor_norm.getDigits().size()] = q_hat_bi.getDigits()[0];
 					}
-					//Obtenemos la parte actual del dividendo
-					dividendj_norm.getDigits().clear();
-					for(int j = divisor_norm.getDigits().size(); j >= 0 ; j--){
-						dividendj_norm.getDigits().push_back(dividend_norm.getDigits()[i-j]);
+					dividendj_norm.scholarDivision(norm_bi, r, aux_bi);
+					if(debug){
+						cout << "---------Obtencion del resto---------" << endl;
+						cout << "Dividendo: " << dividendj_norm << endl;
+						cout << "Divisor: " << norm_bi << endl;
+						cout << "Cociente (resto final): " << r << endl;
+						cout << "Resto (debe ser 0): " << aux_bi << endl;
 					}
-					dividendj_norm = dividendj_norm - q_hat_bi*divisor_norm;
-					
-					while(dividendj_norm < zero){
-						dividendj_norm = dividendj_norm + divisor_norm;
-						q_hat_bi.getDigits()[0]--;
-					}
-					
-					for(int j = divisor_norm.getDigits().size(); j >= 0 ; j--){
-						dividend_norm.getDigits()[i-j] = dividendj_norm.getDigits()[divisor_norm.getDigits().size()-j];
-					}
-					
-					q.getDigits()[i-divisor_norm.getDigits().size()] = q_hat_bi.getDigits()[0];
 				}
-				dividendj_norm.scholarDivision(norm_bi, aux_bi, r);
 			}
+			
+			////Obtenemos el signo y resto finales
+			//Si el dividendo es negativo, el resto que tenemos ahora es negativo
+			
+			
+			if(!getSign()){
+				BigInt one = "0x1";
+				r.setSign(false);
+				cout << "q = " << q << endl;
+				cout << "r = " << r << endl;
+				cout << "d = " << d << endl;
+				//Hacemos el resto positivo sumando o restando el divisor
+				if(d.getSign()){
+					r = r + d;
+					q = q + one;
+				}
+				else{
+					r = r + (-d);
+					q = q - one;
+				}
+				
+			}
+			//Si dividendo y divisor tienen el mismo signo
+			if(getSign() == d.getSign()){
+				q.setSign(true);	//El cociente sera positivo
+			}
+			//Si dividendo y divisor tienen distinto signo
+			else{
+				q.setSign(false);	//El cociente sera negativo
+			}
+			
+			//Quitamos ceros a la izquierda
+			q.eraseZerosAtLeft();
+			r.eraseZerosAtLeft();
 		}
 		/*
 		//4. Division
@@ -856,45 +980,88 @@ void test3(){
 	BigInt bi1 = "0x 0000000000000001 0000000000000000 0000000000000000", result;
 	BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff ffffffffffffffff";
 	cout << "--------------Test Ejercicio 3--------------" << endl;
-	//
 	
 	BigInt bi3 = b*bi2;
 	cout << "bi1 = " << b << endl;
 	cout << "bi2 = " << bi2 << endl;
 	cout << "bi3 = b * bi2 = " << bi3 << endl; 
-	/*
+	
 	BigInt bi4 = c*bi2;
 	cout << "c = " << c << endl;
 	cout << "bi2 = " << bi2 << endl;
 	cout << "bi4 = c * bi2 = " << bi4 << endl; 
-	*/
+	
 	cout << "----------------Test 3 OK :)-----------------" << endl;
 }
 
 void test4(){
 	BigInt bi1 = "0x F234567876543210 0000000000000001 0000000000000000 F234567876543210", result;
-	BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff";
-	BigInt q, r;
+	BigInt bi2 = "0x 0000000000000001 FFFFFFFF00000001 ffffffffffffffff";
+	//BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff ffffffffffffffff";
+	BigInt bi1_n = -bi1, bi2_n = -bi2;
+	BigInt q, r, prueba;
 	
 	cout << "--------------Test Ejercicio 4--------------" << endl;
+	
 	bi1.scholarDivision(bi2, q, r);
+	cout << endl << "RESULTADOS FINALES:" << endl;
 	cout << "Dividendo: " << bi1 << endl;
 	cout << "Divisor: " << bi2 << endl;
 	cout << "Cociente: " << q << endl;
 	cout << "Resto: " << r << endl;
+	prueba = bi2*q + r;
+	cout << "Dividendo con prueba de division: " << prueba << endl;
+	assert(prueba == bi1);
 	
+	cout << "-----Division por un numero mayor que el dividendo-----" << endl;
 	bi2.scholarDivision(bi1, q, r);
 	cout << "Dividendo: " << bi2 << endl;
 	cout << "Divisor: " << bi1 << endl;
 	cout << "Cociente: " << q << endl;
 	cout << "Resto: " << r << endl;
+	prueba = bi1*q + r;
+	cout << "Dividendo con prueba de division: " << prueba << endl;
+	assert(prueba == bi2);
+	
+	cout << "-----Division con dividendo negativo-----" << endl;
+	bi1_n.scholarDivision(bi2, q, r);
+	cout << "Dividendo: " << bi1_n << endl;
+	cout << "Divisor: " << bi2 << endl;
+	cout << "Cociente: " << q << endl;
+	cout << "Resto: " << r << endl;
+	prueba = bi2*q + r;
+	cout << "Dividendo con prueba de division: " << prueba << endl;
+	assert(prueba == bi1_n);
+	
+	cout << "-----Division con divisor negativo-----" << endl;
+	bi1.scholarDivision(bi2_n, q, r);
+	cout << "Dividendo: " << bi1 << endl;
+	cout << "Divisor: " << bi2_n << endl;
+	cout << "Cociente: " << q << endl;
+	cout << "Resto: " << r << endl;
+	prueba = bi2_n*q + r;
+	cout << "Dividendo con prueba de division: " << prueba << endl;
+	assert(prueba == bi1);
+	
+	cout << "-----Division con dividendo y divisor negativos-----" << endl;
+	bi1_n.scholarDivision(bi2_n, q, r);
+	cout << "Dividendo: " << bi1_n << endl;
+	cout << "Divisor: " << bi2_n << endl;
+	cout << "Cociente: " << q << endl;
+	cout << "Resto: " << r << endl;
+	prueba = bi2_n*q + r;
+	cout << "Dividendo con prueba de division: " << prueba << endl;
+	assert(prueba == bi1_n);
 	
 	cout << "----------------Test 4 OK :)-----------------" << endl;
 }
 
 int main(){
+	
+	test1();
+	test2();
 	test3();
-	//test4();
+	test4();
 }
 
 
