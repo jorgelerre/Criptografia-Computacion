@@ -978,7 +978,29 @@ class BigInt{
 			return c;
 		}
 		
-		
+		//6. Algoritmo Extendido de Euclides
+		void AEE(const BigInt& b_ini, BigInt& a, BigInt& u0, BigInt& v0) const{
+			BigInt u1("0x0"), v1("0x1");
+			BigInt b = b_ini;
+			BigInt q, r;
+			BigInt u, v, zero;
+			
+			a = *this;
+			u0 = "0x1";
+			v0 = "0x0";
+			
+			while(b != zero){
+				a.scholarDivision(b, q, r);
+				a = b;
+				b = r;
+				u = u0 - q*u1;
+				v = v0 - q*v1;
+				u0 = u1;
+				v0 = v1;
+				u1 = u;
+				v1 = v;
+			}
+		}
 		
 };
 
@@ -1190,12 +1212,29 @@ void test5(){
 	cout << "----------------Test 5 OK :)-----------------" << endl;
 }
 
+void test6(){
+	BigInt a= "0x1234567876543210", b="0x 1000000000000001 FFFFFFFF00000001", c="0x1";
+	BigInt bi1 = "0x 0000000000000001 0000000000000000 0000000000000000", result;
+	BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff fffffffffffffff0";
+	BigInt d, u0, v0;
+	cout << "--------------Test Ejercicio 6--------------" << endl;
+	bi1.AEE(bi2, d, u0, v0);
+	cout << "bi1 = " << bi1 << endl;
+	cout << "bi2 = " << bi2 << endl;
+	cout << "d = " << d << endl;
+	cout << "u0 = " << u0 << endl;
+	cout << "v0 = " << v0 << endl;
+	cout << "Igualdad de Bezout: (bi1, bi2) = u0*bi1 + v0*bi2 = " << u0*bi1 + v0*bi2 << endl; 
+	cout << "----------------Test 6 OK :)-----------------" << endl;
+}
+
 int main(){
 	//test1();
 	//test2();
-	test3();
+	//test3();
 	//test4();
-	test5();
+	//test5();
+	test6();
 }
 
 
