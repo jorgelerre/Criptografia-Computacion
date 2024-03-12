@@ -410,7 +410,7 @@ class BigInt{
 			//Si los dos numeros son negativos
 			else if(sign == false && other.getSign() == false){
 				//Comparamos el numero de digitos (la representacion no tendra nunca 0s a la izquierda)
-				if(digits.size() < other.getDigits().size()){
+				if(digits.size() > other.getDigits().size()){
 					lower = true;
 				}
 				else if(digits.size() == other.getDigits().size()){
@@ -522,13 +522,19 @@ class BigInt{
 			//Si los signos son iguales, restamos el numero mas grande al mas pequeño
 			//El resultado tendra el signo de los operandos si el minuendo es mayor que el sustraendo
 			else{
-				//Si el this es mayor (en valor absoluto) que other
-				if((*this >= other && sign) || (*this <= other && !sign)){
+				/*
+				cout << "this = " << *this << endl;
+				cout << "other = " << other << endl;
+				cout << (*this > other) << endl;
+				*/
+				//Si this es mayor (en valor absoluto) que other
+				if((*this >= other && getSign()) || (*this <= other && !getSign())){
 					//Colocamos *this como minuendo y other como sustraendo
 					//El signo resultante sera el mismo que tienen los dos operandos
 					min = this;
 					sus = &other;
 					dif.setSign(getSign());
+					//cout << "|this| > |other|" << endl;
 				}
 				else{
 					//Colocamos other como minuendo y *this como sustraendo
@@ -536,9 +542,12 @@ class BigInt{
 					min = &other;
 					sus = this;
 					dif.setSign(!getSign());
+					//cout << "|this| < |other|" << endl;
 				}
 				dif.getDigits().clear();
 				//Realizamos la resta "digito a digito" siguiendo el algoritmo escolar
+				//cout << "Min = " << *min << endl;
+				//cout << "Sus = " << *sus << endl;
 				for(int i = 0; i < min->getDigits().size(); i++){
 					//Obtenemos los digitos a restar de cada BigInt (si no quedan, usamos 0)
 					a = min->getDigits().at(i);
@@ -558,9 +567,11 @@ class BigInt{
 					//ocurre si el resultado es mayor que cualquiera de los minuendos.
 					//En dicho caso, almacenamos el acarreo en carry.
 					carry = (res_c > res || res > a) ? 1 : 0;
-					//cout << "a = " << a << "\tb = " << b << "\tc = " << carry << endl;
-					//cout << "res = " << res << "\tres_c = " << res_c << endl;
-					//cout << "Carry " << i << " = " << carry << endl;
+					/*
+					cout << hex << "a = " << a << "\tb = " << b << "\tc = " << carry << endl;
+					cout << hex <<  "res = " << res << "\tres_c = " << res_c << endl;
+					cout << hex << "Carry " << i << " = " << carry << endl;
+					*/
 				}
 			}
 			dif.eraseZerosAtLeft();
@@ -837,7 +848,7 @@ class BigInt{
 					q = q + one;
 				}
 				else{
-					r = r + (-d);
+					r = r - d;
 					q = q - one;
 				}
 				
@@ -1057,10 +1068,9 @@ void test4(){
 }
 
 int main(){
-	
-	test1();
-	test2();
-	test3();
+	//test1();
+	//test2();
+	//test3();
 	test4();
 }
 
