@@ -3,6 +3,7 @@
 #include <string>
 #include <iostream>
 #include <cassert>
+#include <cmath>
 
 
 using namespace std;
@@ -611,6 +612,11 @@ class BigInt{
 			return res;
 		}
 		
+		BigInt operator*(const BigInt& other) const{
+			return this->scholarMult(other);
+		}
+		
+		//4. Division
 		void scholarDivision(BigInt d, BigInt& q, BigInt& r, bool debug = false) const{
 			//Borramos los valores previos de q y r
 			q.getDigits().clear();
@@ -866,15 +872,113 @@ class BigInt{
 			q.eraseZerosAtLeft();
 			r.eraseZerosAtLeft();
 		}
-		/*
-		//4. Division
+		
 		BigInt operator/(const BigInt& other) const{
-			BigInt
+			BigInt q,r;
+			scholarDivision(other, q, r);
+			return q;
 		}
-		*/
-		BigInt operator*(const BigInt& other) const{
-			return this->scholarMult(other);
+		
+		BigInt operator%(const BigInt& other) const{
+			BigInt q,r;
+			scholarDivision(other, q, r);
+			return r;
 		}
+		
+		//5. Algoritmo de Karatsuba
+		
+		BigInt karatsubaMult(const BigInt& other, bool debug = false) const{
+			BigInt m1(*this), m2(other);
+			//m1.setSign(true);
+			//m2.setSign(true);
+			BigInt c;
+			int tam_max = max(log2(m1.getDigits().size()), log2(m2.getDigits().size()));
+			float tam = pow(2, tam_max);
+			if(m1.getDigits().size() > tam || m2.getDigits().size() > tam){
+				tam = tam * 2;
+			}
+			//Hacemos que ambas partes tengan el mismo numero de digitos
+			if(debug)
+				cout << "Tamanio de operandos = " << tam << endl;
+			while(m1.getDigits().size() < tam){
+				m1.getDigits().push_back(0);
+				if(debug)
+					cout << "Aniade 0 a la izquierda. Tamanio actual = " << m1.getDigits().size() << endl;
+			}
+			
+			while(m2.getDigits().size() < tam){
+				m2.getDigits().push_back(0);
+				if(debug)
+					cout << "Aniade 0 a la izquierda. Tamanio actual = " << m2.getDigits().size() << endl;
+			}
+			if(debug){
+				cout << "Karatsuba tamanio " << getDigits().size() << endl;
+				cout << "m1 = " << m1 << endl;
+				cout << "m2 = " << m2 << endl;
+			}
+			//Si la longitud es de un digito, multiplicamos directamente
+			if(m1.getDigits().size() == 1){
+				UInt128 mult;
+				mult = multiply64(m1.getDigits()[0], m2.getDigits()[0], 0);
+				c.getDigits().clear();
+				c.getDigits().push_back(mult.low);
+				c.getDigits().push_back(mult.high);
+				if(debug)
+					cout << "Multiplicacion directa = " << c << endl;
+			}
+			else{
+				BigInt a0, a1, b0, b1, c0, c1, c2, c3, aux0, aux1, aux2;
+				//Dividimos a y b en dos partes
+				a0.getDigits().clear();
+				a1.getDigits().clear();
+				b0.getDigits().clear();
+				b1.getDigits().clear();
+				for(int i = 0; i < tam/2; i++){
+					a0.getDigits().push_back(m1.getDigits()[i]);
+					b0.getDigits().push_back(m2.getDigits()[i]);
+				}
+				for(int i = tam/2; i < tam; i++){
+					a1.getDigits().push_back(m1.getDigits()[i]);
+					b1.getDigits().push_back(m2.getDigits()[i]);
+				}
+				
+				//Realizamos las llamadas recursivas
+				c0 = a0.karatsubaMult(b0);
+				c1 = (a1 - a0).karatsubaMult(b0 - b1);
+				c2 = a1.karatsubaMult(b1);
+				
+				//Realizamos la suma final
+				//aux1 = (c0 + c1 + c2) con 2^m-1 ceros al final
+				aux0 = c0 + c1 + c2;
+				
+				aux1.getDigits().clear();
+				for(int i = 0; i < tam/2; i++)
+					aux1.getDigits().push_back(0);
+				for(int i = 0; i < aux0.getDigits().size(); i++)
+					aux1.getDigits().push_back(aux0.getDigits()[i]);
+				
+				aux2.getDigits().clear();
+				for(int i = 0; i < tam; i++)
+					aux2.getDigits().push_back(0);
+				for(int i = 0; i < c2.getDigits().size(); i++)
+					aux2.getDigits().push_back(c2.getDigits()[i]);
+				if(debug){
+					cout << "Suma final (nivel " << tam << ")" << endl;
+					cout << "c0 = " << c0 << endl;
+					cout << "aux1 = " << aux1 << endl;
+					cout << "aux2 = " << aux2 << endl;
+				}
+				c = c0 + aux1 + aux2;
+				bool signo = (m1.getSign() && m2.getSign()) || (!m1.getSign() && !m2.getSign());
+				c.setSign(signo);
+				if(debug)
+					cout << "Suma final = " << c << endl;
+			}
+			c.eraseZerosAtLeft();
+			return c;
+		}
+		
+		
 		
 };
 
@@ -1067,11 +1171,31 @@ void test4(){
 	cout << "----------------Test 4 OK :)-----------------" << endl;
 }
 
+void test5(){
+	BigInt a= "0x1234567876543210", b="0x 1000000000000001 FFFFFFFF00000001", c="0x1";
+	BigInt bi1 = "0x 0000000000000001 0000000000000000 0000000000000000", result;
+	BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff ffffffffffffffff";
+	cout << "--------------Test Ejercicio 5--------------" << endl;
+	
+	BigInt bi3 = b.karatsubaMult(bi2);
+	cout << "bi1 = " << b << endl;
+	cout << "bi2 = " << bi2 << endl;
+	cout << "bi3 = b * bi2 = " << bi3 << endl; 
+	
+	BigInt bi4 = c.karatsubaMult(bi2);
+	cout << "c = " << c << endl;
+	cout << "bi2 = " << bi2 << endl;
+	cout << "bi4 = c * bi2 = " << bi4 << endl; 
+	
+	cout << "----------------Test 5 OK :)-----------------" << endl;
+}
+
 int main(){
 	//test1();
 	//test2();
-	//test3();
-	test4();
+	test3();
+	//test4();
+	test5();
 }
 
 
