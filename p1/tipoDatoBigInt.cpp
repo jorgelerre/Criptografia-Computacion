@@ -4,7 +4,7 @@
 #include <iostream>
 #include <cassert>
 #include <cmath>
-
+#include <bitset>
 
 using namespace std;
 
@@ -845,9 +845,11 @@ class BigInt{
 			if(!getSign()){
 				BigInt one = "0x1";
 				r.setSign(false);
-				cout << "q = " << q << endl;
-				cout << "r = " << r << endl;
-				cout << "d = " << d << endl;
+				if(debug){
+					cout << "q = " << q << endl;
+					cout << "r = " << r << endl;
+					cout << "d = " << d << endl;
+				}
 				//Hacemos el resto positivo sumando o restando el divisor
 				if(d.getSign()){
 					r = r + d;
@@ -979,19 +981,19 @@ class BigInt{
 		}
 		
 		//6. Algoritmo Extendido de Euclides
-		void AEE(const BigInt& b_ini, BigInt& a, BigInt& u0, BigInt& v0) const{
+		void EEA(const BigInt& b_ini, BigInt& mcd, BigInt& mcm, BigInt& u0, BigInt& v0) const{
 			BigInt u1("0x0"), v1("0x1");
 			BigInt b = b_ini;
 			BigInt q, r;
 			BigInt u, v, zero;
 			
-			a = *this;
+			mcd = *this;
 			u0 = "0x1";
 			v0 = "0x0";
 			
 			while(b != zero){
-				a.scholarDivision(b, q, r);
-				a = b;
+				mcd.scholarDivision(b, q, r);
+				mcd = b;
 				b = r;
 				u = u0 - q*u1;
 				v = v0 - q*v1;
@@ -1000,6 +1002,71 @@ class BigInt{
 				u1 = u;
 				v1 = v;
 			}
+			
+			mcm = (*this) * u1;
+			mcm.setSign(true);
+		}
+		
+		//7. Exponenciacion rapida
+		
+		BigInt quickModExp(const BigInt& exp, const BigInt& mod) const{
+			BigInt i = "0x0", exp_act = exp, zero = "0x0", one = "0x1", two = "0x2", p;
+			bool first_digit_read = false;
+			int bin_digit;
+			//Comprobaciones iniciales
+			assert(*this > zero && exp >= zero);
+			
+			//Inicializamos p = 1
+			p = "0x1";
+			
+			//Por cada digito que tengamos en el exponente
+			for(int i = exp.getDigits().size() - 1; i >= 0; i--){
+				bitset<64> digit(exp.getDigits()[i]);
+				cout << "Num actual: " << bitset<64>(digit) << endl;
+				//Por cada digito binario en el digito
+				for(int j = 63; j >= 0; j--){
+					bin_digit = digit[j];
+					cout << "Bit actual: " << bin_digit << endl;
+					//Si el digito es 1
+					if(bin_digit == 1){
+						p = (p * p * (*this)) % mod;
+					}
+					//Si el digito es 0
+					else{
+						p = (p * p) % mod;
+					}
+					cout << "p = " << p << endl;
+				}
+				cout << endl;
+			}
+			return p;
+		}
+		
+		//Extra
+		
+		bool modularInverse(const BigInt& mod, BigInt& inverse, bool debug = false) const{
+			bool exists_inverse = false;
+			BigInt aux, rem;
+			BigInt mcd, mcm, u, v;
+			BigInt one("0x1");
+			
+			//Comprobamos que el modulo sea valido
+			assert(mod > one);
+			
+			//Guardamos en rem el valor de *this en modulo mod
+			this->scholarDivision(mod, aux, rem);
+			//Aplicamos el algoritmo extendido de Euclides
+			mod.EEA(rem, mcd, mcm, u, v);
+			if(debug)
+				cout << "mcd = " << mcd << endl;
+			//Si el mcd es 1, entonces calculamos el inverso multiplicativo
+			//Si no es 1, entonces no existe el inverso multiplicativo y devolvemos -1
+			if(mcd == one){
+				v.scholarDivision(mod, aux, inverse);
+				exists_inverse = true;
+			}
+			
+			return exists_inverse;
 		}
 		
 };
@@ -1012,7 +1079,7 @@ BigInt creaBigInt(const string& s){
 
 void test1(){
 	BigInt bint1,
-		   bint2("-0x  9638527410 0123456789abcdef fedcba9876543210"),
+		   bint2("-0x   9638527410  0123456789abcdef fedcba9876543210"),
 		   bint3("-0x 9638527410 0123456789abcdef 0123456776543210"),
 		   bint4 = string("-0x 0"),
 		   bint5(bint3),
@@ -1216,16 +1283,92 @@ void test6(){
 	BigInt a= "0x1234567876543210", b="0x 1000000000000001 FFFFFFFF00000001", c="0x1";
 	BigInt bi1 = "0x 0000000000000001 0000000000000000 0000000000000000", result;
 	BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff fffffffffffffff0";
-	BigInt d, u0, v0;
+	BigInt mcd, u0, v0, mcm;
 	cout << "--------------Test Ejercicio 6--------------" << endl;
-	bi1.AEE(bi2, d, u0, v0);
+	bi1.EEA(bi2, mcd, mcm, u0, v0);
 	cout << "bi1 = " << bi1 << endl;
 	cout << "bi2 = " << bi2 << endl;
-	cout << "d = " << d << endl;
+	cout << "mcd = " << mcd << endl;
+	cout << "mcm = " << mcm << endl;
 	cout << "u0 = " << u0 << endl;
 	cout << "v0 = " << v0 << endl;
-	cout << "Igualdad de Bezout: (bi1, bi2) = u0*bi1 + v0*bi2 = " << u0*bi1 + v0*bi2 << endl; 
+	
+	cout << "Igualdad de Bezout: (bi1, bi2) = u0*bi1 + v0*bi2 " << endl;
+	cout << mcd << " = " << u0*bi1 + v0*bi2 << endl; 
 	cout << "----------------Test 6 OK :)-----------------" << endl;
+}
+
+void test_modInv(){
+	BigInt a= "0x123456787654321", b="0x 1000000000000001 FFFFFFFF00000001", c="0x1";
+	BigInt bi1 = "0x 0000000000000001 0000000000000000 0000000000000000", result;
+	BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff ffffffffffffffff";
+	BigInt inv, r;
+	BigInt mcd, u0, v0, mcm;
+	bool exists;
+	cout << "--------Test Ejercicio 7.1 - Prueba de inversos modulares---------" << endl;
+	
+	cout << "-----Existe inverso 1-----" << endl;
+	cout << "n = " << bi2 << endl;
+	cout << "m = " << bi1 << endl;
+	exists = bi2.modularInverse(bi1, inv, true);
+	if(exists){
+		cout << "inv = " << inv << endl;
+		r = (bi2*inv)%bi1;
+		cout << "n * inv mod m = " << r << endl;
+	}
+	else{
+		cout << "No hay inversa :( " << endl;
+	}
+	
+	cout << "-----Existe inverso 2-----" << endl;
+	cout << "n = " << a << endl;
+	cout << "m = " << bi1 << endl;
+	exists = a.modularInverse(bi1, inv, true);
+	if(exists){
+		cout << "inv = " << inv << endl;
+		r = (a*inv)%bi1;
+		cout << "n * inv mod m = " << r << endl;
+	}
+	else{
+		cout << "No hay inversa :( " << endl;
+	}
+	
+	cout << "-----No existe inverso-----" << endl;
+	cout << "n = " << bi2 << endl;
+	cout << "m = " << a << endl;
+	exists = bi2.modularInverse(a, inv, true);
+	if(exists){
+		cout << "inv = " << inv << endl;
+		r = (bi2*inv)%a;
+		cout << "n * inv mod m = " << r << endl;
+	}
+	else{
+		cout << "No hay inversa :( " << endl;
+	}
+	
+	cout << "----------------Test Inversos Modulares OK :)-----------------" << endl;
+}
+
+void test7(){
+	
+	BigInt a="0x 1000000000000001 FFFFFFFF00000001", b="0x1234567876543210", c="0x1";
+	BigInt bi1 = "0x 0000000000000001 0000000000000000 0000000000000000", result;
+	BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff fffffffffffffff0";
+	BigInt res;
+	cout << "--------------Test Ejercicio 7--------------" << endl;
+	
+	/*
+	BigInt a="0x 1000000000000001 FFFFFFFF00000001", b="0x100";
+	BigInt bi1 = "0x 0000000000000001 0000000000000000 0000000000000000";
+	BigInt res;
+	*/
+	res = a.quickModExp(b, bi1);
+	cout << "a = " << a << endl;
+	cout << "b = " << b << endl;
+	cout << "m = " << bi1 << endl;
+	cout << "a^b mod n = " << res << endl;
+
+	cout << "----------------Test 7 OK :)-----------------" << endl;
 }
 
 int main(){
@@ -1234,7 +1377,9 @@ int main(){
 	//test3();
 	//test4();
 	//test5();
-	test6();
+	//test6();
+	//test_modInv();
+	test7();
 }
 
 
