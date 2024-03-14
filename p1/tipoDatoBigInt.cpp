@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cmath>
 #include <bitset>
+#include <random>
 
 using namespace std;
 
@@ -126,6 +127,10 @@ class BigInt{
 	private:
 		vector<uint64_t> digits;
 		bool sign;
+		static bool random_initialized;
+		static mt19937_64 generator; // Generador de números aleatorios
+
+//public:
 		//Pone el valor del numero a 0
 		void setToZero(){
 			digits.clear();
@@ -195,6 +200,50 @@ class BigInt{
 		}
 		
 	public:
+		//Generacion de numeros aleatorios
+		static void initializeGenerator() {
+		    random_device rd;
+		    generator.seed(rd()); // Utiliza una semilla aleatoria para inicializar el generador
+		    random_initialized = true;
+		}
+		
+		//Generador de BigInt positivos aleatorios
+		//limit representa el valor maximo que puede tomar el numero aleatorio
+		static BigInt randomBigInt(const BigInt& limit){
+			uint64_t random_value, random_value_limit;
+			//Inicializamos los numeros aleatorios si es la primera vez
+			if(!random_initialized){
+				initializeGenerator();
+			}
+			//Creamos una distribucion uniforme
+			uniform_int_distribution<uint64_t> dis;
+			
+			//Copiamos el limite en r_bi
+			BigInt r_bi = limit;
+			
+			//Cambiamos los digitos menos significativos de r_bi por numeros aleatorios
+			for(int i = 0; i < r_bi.getDigits().size() - 1; i++){
+				random_value = dis(generator);
+				r_bi.getDigits()[i] = random_value;
+			}
+			
+			//Cambiamos el digito mas significativo de r_bi, de forma que no sea mas grande que limit
+			//Valor final = Random * valor  / Max_uint64t
+			random_value = dis(generator);
+			BigInt aux1, aux2, base("0x10000000000000000"), q, r;
+			aux1.getDigits()[0] = random_value;
+			aux2.getDigits()[0] = limit.getDigits()[r_bi.getDigits().size()-1];
+			aux1 = aux1 * aux2;
+			q = aux1 / base;
+			r_bi.getDigits()[r_bi.getDigits().size()-1] = q.getDigits()[0];
+			//En caso de que el numero generado sea mayor, restamos 1 al digito mas significativo
+			if(r_bi > limit && r_bi.getDigits()[r_bi.getDigits().size()-1] > 0){
+				r_bi.getDigits()[r_bi.getDigits().size()-1]--;
+			}
+			r_bi.eraseZerosAtLeft();
+			return r_bi;
+		}
+
 		//Constructor por defecto (inicializa el valor a +0)
 		BigInt(){
 			setToZero();
@@ -1022,11 +1071,11 @@ class BigInt{
 			//Por cada digito que tengamos en el exponente
 			for(int i = exp.getDigits().size() - 1; i >= 0; i--){
 				bitset<64> digit(exp.getDigits()[i]);
-				cout << "Num actual: " << bitset<64>(digit) << endl;
+				//cout << "Num actual: " << bitset<64>(digit) << endl;
 				//Por cada digito binario en el digito
 				for(int j = 63; j >= 0; j--){
 					bin_digit = digit[j];
-					cout << "Bit actual: " << bin_digit << endl;
+					//cout << "Bit actual: " << bin_digit << endl;
 					//Si el digito es 1
 					if(bin_digit == 1){
 						p = (p * p * (*this)) % mod;
@@ -1035,11 +1084,69 @@ class BigInt{
 					else{
 						p = (p * p) % mod;
 					}
-					cout << "p = " << p << endl;
+					//cout << "p = " << p << endl;
 				}
-				cout << endl;
+				//cout << endl;
 			}
 			return p;
+		}
+		
+		//8. Test de Miller-Rabin
+		
+		bool strongPseudoprime(const BigInt& base, bool debug = false) const{
+			bool is_pseudoprime = false;
+			BigInt mcd, mcm, u0, v0;
+			BigInt q, r;
+			BigInt b;
+			BigInt zero = "0x0", one = "0x1", two = "0x2";
+			//Comprobamos que sean coprimos y que el primo que comprobamos sea mayor que 1
+			this->EEA(base, mcd, mcm, u0, v0);
+			if(debug)
+				cout << "mcd de a y la base = " << mcd << endl;
+			if(mcd == one && one < (*this)){
+				//Calculamos s,t tales que n-1 = 2^s*t con t impar
+				BigInt t = (*this) - one, s = zero;
+				t.scholarDivision(two, q, r);
+				while (r == zero){
+					t = q;
+					s = s + one;
+					t.scholarDivision(BigInt(two), q, r);
+				}
+				if(debug){
+					cout << "s = " << s << endl;
+					cout << "t = " << t << endl;
+					cout << "2^s*t = " << two.quickModExp(s,*this)*t << endl;	//el modulo es mayor que 2^s
+				}
+				
+				b = base.quickModExp(t, *this);
+				
+				if(b == one || b == (*this) - one){
+					is_pseudoprime = true;
+				}
+				for(BigInt r = one; r < s - one && !is_pseudoprime; r = r + one){
+					b = (b*b) % (*this);
+					if(b == (*this) - one){
+						is_pseudoprime = true;
+					}
+				}
+			}
+			return is_pseudoprime;
+		}
+		
+		bool millerRabinTest(int k, bool debug = false){
+			bool no_fail = true;
+			BigInt rn;
+			for(int i = 0; i < k && no_fail; i++){
+				rn = randomBigInt(*this);
+				if(debug){
+					cout << "-------------i = " << i << "-------------" << endl;
+					cout << "Numero aleatorio generado = " << rn << endl;
+				}
+				if(strongPseudoprime(rn, debug) == false){
+					no_fail = false;
+				}
+			}
+			return no_fail;
 		}
 		
 		//Extra
@@ -1071,6 +1178,8 @@ class BigInt{
 		
 };
 
+bool BigInt::random_initialized = false; // Inicialización del atributo estático fuera de la clase
+std::mt19937_64 BigInt::generator; // Inicialización del atributo estático
 
 BigInt creaBigInt(const string& s){
 	BigInt b(s);
@@ -1371,7 +1480,38 @@ void test7(){
 	cout << "----------------Test 7 OK :)-----------------" << endl;
 }
 
+void test8(){
+	
+	BigInt a="0x 1000000000000001 FFFFFFFF00000001", b="0x1234567876543210", c="0x1";
+	BigInt bi1 = "0x 0000000000000001 0000000000000000 0000000000000000", result;
+	BigInt bi2 = "0x ffffffffffffffff ffffffffffffffff fffffffffffffff0";
+	a = "0x5af3107a401f";	//Numero primo
+	bool res;
+	cout << "--------------Test Ejercicio 8--------------" << endl;
+	
+	res = a.millerRabinTest(10);
+	cout << "a = " << a << endl;
+	if(res){
+		cout << "Es primo :)" << endl;
+	}
+	else{
+		cout << "No es primo :0" << endl;
+	}
+	
+	res = bi2.millerRabinTest(10);
+	cout << "a = " << bi2 << endl;
+	if(res){
+		cout << "Es primo :)" << endl;
+	}
+	else{
+		cout << "No es primo :0" << endl;
+	}
+	
+	cout << "----------------Test 8 OK :)-----------------" << endl;
+}
+
 int main(){
+	BigInt::initializeGenerator(); // Inicializar el generador de números aleatorios
 	//test1();
 	//test2();
 	//test3();
@@ -1379,7 +1519,8 @@ int main(){
 	//test5();
 	//test6();
 	//test_modInv();
-	test7();
+	//test7();
+	test8();
 }
 
 
