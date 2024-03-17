@@ -5,14 +5,21 @@ INCDIR = include
 OBJDIR = obj
 BINDIR = bin
 CXXFLAGS = -I$(INCDIR)
-SOURCES = $(wildcard $(SRCDIR)/*.cpp)
-OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(SOURCES))
-EXECUTABLE = $(BINDIR)/bigInt
+TESTS_EXECUTABLE = $(BINDIR)/tests
+EXPERIMENTS_EXECUTABLE = $(BINDIR)/experiments
 
 # Reglas
-all: $(EXECUTABLE)
+all: tests experiments
 
-$(EXECUTABLE): $(OBJECTS)
+tests: $(TESTS_EXECUTABLE)
+
+experiments: $(EXPERIMENTS_EXECUTABLE)
+
+$(TESTS_EXECUTABLE): $(OBJDIR)/tests.o $(OBJDIR)/bigInt.o
+	@mkdir -p $(BINDIR)
+	$(CXX) -o $@ $^
+
+$(EXPERIMENTS_EXECUTABLE): $(OBJDIR)/experiments.o $(OBJDIR)/bigInt.o
 	@mkdir -p $(BINDIR)
 	$(CXX) -o $@ $^
 
@@ -21,7 +28,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJECTS) $(EXECUTABLE)
+	rm -f $(OBJDIR)/* $(BINDIR)/*
 
-.PHONY: all clean
+.PHONY: all tests experiments clean
 

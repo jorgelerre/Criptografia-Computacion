@@ -233,6 +233,31 @@ BigInt BigInt::randomBigInt(const BigInt& limit){
 	return r_bi;
 }
 
+//Generador de BigInt positivos aleatorios
+//limit representa el valor maximo que puede tomar el numero aleatorio
+BigInt BigInt::randomBigInt(int digs){
+	uint64_t random_value;
+	
+	//Inicializamos los numeros aleatorios si es la primera vez
+	if(!random_initialized){
+		initializeGenerator();
+	}
+	//Creamos una distribucion uniforme
+	uniform_int_distribution<uint64_t> dis;
+	
+	BigInt r_bi;
+	
+	//Creamos el digito menos significativo
+	r_bi.getDigits()[0] = dis(generator);
+	//Aniadimos digitos hasta que lleguemos al numero de digitos especificado
+	for(int i = 1; i < digs; i++){
+		random_value = dis(generator);
+		r_bi.getDigits().push_back(random_value);
+	}
+	
+	return r_bi;
+}
+
 //Constructor por defecto (inicializa el valor a +0)
 BigInt::BigInt(){
 	setToZero();

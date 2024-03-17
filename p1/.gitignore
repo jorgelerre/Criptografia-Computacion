@@ -2,3 +2,4 @@
 /obj/*
 /src/pruebaDivision.cpp
 *.o
+*.sh

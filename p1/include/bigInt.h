@@ -45,7 +45,8 @@ class BigInt{
 		//Generador de BigInt positivos aleatorios
 		//limit representa el valor maximo que puede tomar el numero aleatorio
 		static BigInt randomBigInt(const BigInt& limit);
-
+		//por numero de digitos
+		static BigInt randomBigInt(int digs);
 		//Constructor por defecto (inicializa el valor a +0)
 		BigInt();
 		//Constructor por parametros
@@ -126,18 +127,6 @@ class BigInt{
 		
 };
 
-
-
 BigInt creaBigInt(const string& s);
-
-void test1();
-void test2();
-void test3();
-void test4();
-void test5();
-void test6();
-void test_modInv();
-void test7();
-void test8();
 
 
