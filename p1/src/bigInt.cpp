@@ -1090,13 +1090,10 @@ BigInt BigInt::quickModExp(const BigInt& exp, const BigInt& mod) const{
 		for(int j = 63; j >= 0; j--){
 			bin_digit = digit[j];
 			//cout << "Bit actual: " << bin_digit << endl;
+			p = (p * p) % mod;
 			//Si el digito es 1
 			if(bin_digit == 1){
-				p = (p * p * (*this)) % mod;
-			}
-			//Si el digito es 0
-			else{
-				p = (p * p) % mod;
+				p = ( p * (*this)) % mod;
 			}
 			//cout << "p = " << p << endl;
 		}

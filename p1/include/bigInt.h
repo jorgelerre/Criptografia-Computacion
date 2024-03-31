@@ -17,12 +17,11 @@ struct UInt128 {
 
 class BigInt{
 	private:
-		vector<uint64_t> digits;
-		bool sign;
+		vector<uint64_t> digits;	// Vector con los digitos del BigInt en formato Little Endian
+		bool sign;	//Signo del entero (true = positivo, false = negativo)
 		static bool random_initialized;
 		static mt19937_64 generator; // Generador de números aleatorios
 
-//public:
 		//Pone el valor del numero a 0
 		void setToZero();
 		//Quita los ceros a la izquierda del numero
@@ -95,7 +94,7 @@ class BigInt{
 		bool operator>=(const BigInt& other) const;
 		
 		/////////-------Operaciones aritmeticas elementales-------/////////
-		//2.1. Cambio de signo
+		//2.1. Cambio de signo / Suma / Resta
 		BigInt operator-() const;
 		BigInt operator+(const BigInt& other) const;
 		BigInt operator-(const BigInt& other) const;

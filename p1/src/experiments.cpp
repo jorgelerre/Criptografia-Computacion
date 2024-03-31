@@ -104,17 +104,19 @@ int main(int argc, char** argv){
 	t_sum /= repeticiones; 
 	t_sum2 = sqrt(t_sum2/(repeticiones-1.0) - t_sum*t_sum);
 	cout << t_sum << endl;
-	cout  << t_sum << endl;
+	cout  << t_sum2 << endl;
 	//Multiplicacion
 	t_mul /= repeticiones; 
 	t_mul2 = sqrt(t_mul2/(repeticiones-1.0) - t_mul*t_mul);
 	cout << t_mul << endl;
 	cout << t_mul2 << endl;
 	//Division
+	
 	t_div /= repeticiones; 
 	t_div2 = sqrt(t_div2/(repeticiones-1.0) - t_div*t_div);
 	cout << t_div << endl;
 	cout << t_div2 << endl;
+	
 	//Karatsuba
 	t_kar /= repeticiones; 
 	t_kar2 = sqrt(t_kar2/(repeticiones-1.0) - t_kar*t_kar);
